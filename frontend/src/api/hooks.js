@@ -1,6 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 
+// Sports browsing
+export const useSports = () => useQuery({ queryKey: ['sports'], queryFn: api.listSports, staleTime: 60 * 60 * 1000 });
+export const useSportEvents = (sportKey, dateFrom, dateTo) => useQuery({
+  queryKey: ['sportEvents', sportKey, dateFrom, dateTo],
+  queryFn: () => api.listSportEvents(sportKey, { date_from: dateFrom, date_to: dateTo }),
+  enabled: !!sportKey,
+  staleTime: 5 * 60 * 1000,
+});
+
 // Slates
 export const useSlates = () => useQuery({ queryKey: ['slates'], queryFn: api.listSlates });
 export const useSlate = (id) => useQuery({ queryKey: ['slate', id], queryFn: () => api.getSlate(id), enabled: !!id });
@@ -18,6 +27,10 @@ export const useEvents = (slateId) => useQuery({ queryKey: ['events', slateId], 
 export const useCreateEvent = (slateId) => {
   const qc = useQueryClient();
   return useMutation({ mutationFn: (data) => api.createEvent(slateId, data), onSuccess: () => qc.invalidateQueries({ queryKey: ['events', slateId] }) });
+};
+export const useCreateEventsBatch = (slateId) => {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: (events) => api.createEventsBatch(slateId, events), onSuccess: () => qc.invalidateQueries({ queryKey: ['events', slateId] }) });
 };
 export const useDeleteEvent = (slateId) => {
   const qc = useQueryClient();

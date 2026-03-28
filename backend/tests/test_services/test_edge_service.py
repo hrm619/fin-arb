@@ -48,10 +48,11 @@ def _add_estimate(db, event_id, prob_pct):
     return submit_estimate(db, event_id, EstimateCreate(probability_pct=prob_pct))
 
 
-def _add_line(db, event_id, source, implied_prob_pct, decimal_odds):
+def _add_line(db, event_id, source, implied_prob_pct, decimal_odds, outcome_name="Chiefs"):
     store_lines(db, event_id, [{
         "event_id": event_id,
         "source": source,
+        "outcome_name": outcome_name,
         "market_key": "h2h",
         "implied_prob_pct": implied_prob_pct,
         "american_odds": None,
@@ -114,7 +115,7 @@ class TestRankSlate:
 
         e2 = _add_event(db, slate.id, "Eagles", "Cowboys", confidence_tier="medium")
         _add_estimate(db, e2.id, 70.0)
-        _add_line(db, e2.id, "fanduel", 50.0, 2.0)
+        _add_line(db, e2.id, "fanduel", 50.0, 2.0, outcome_name="Eagles")
 
         ranked = rank_slate(db, slate.id)
         assert len(ranked) == 2
@@ -171,7 +172,7 @@ class TestGetShortlist:
         for i in range(5):
             e = _add_event(db, slate.id, f"Team{i}", f"Opp{i}", confidence_tier="high")
             _add_estimate(db, e.id, 60.0 + i * 3)
-            _add_line(db, e.id, "draftkings", 50.0, 2.0)
+            _add_line(db, e.id, "draftkings", 50.0, 2.0, outcome_name=f"Team{i}")
 
         shortlist = get_shortlist(db, slate.id, n=3)
         assert len(shortlist) == 3
@@ -190,18 +191,20 @@ class TestGetArbOpportunities:
     def test_aggregates_across_events(self, db):
         slate = _setup_slate(db)
         e1 = _add_event(db, slate.id, "Chiefs", "Bills")
-        # Create arb: dk at 45%, fd at 58% → complement 42%, sum 87%
+        # Create arb: dk Chiefs at 45%, fd Bills at 48% → sum 93% < 97%
         store_lines(db, e1.id, [
             {
                 "event_id": e1.id, "source": "draftkings", "market_key": "h2h",
+                "outcome_name": "Chiefs",
                 "implied_prob_pct": 45.0, "american_odds": None,
                 "decimal_odds": 2.22, "fetched_at": datetime.now(tz=UTC),
                 "raw_response": None,
             },
             {
                 "event_id": e1.id, "source": "fanduel", "market_key": "h2h",
-                "implied_prob_pct": 58.0, "american_odds": None,
-                "decimal_odds": 1.72, "fetched_at": datetime.now(tz=UTC),
+                "outcome_name": "Bills",
+                "implied_prob_pct": 48.0, "american_odds": None,
+                "decimal_odds": 2.08, "fetched_at": datetime.now(tz=UTC),
                 "raw_response": None,
             },
         ])

@@ -20,6 +20,7 @@ dependencies = [
     "pytest-asyncio",
     "anthropic",
     "yt-transcriber @ git+https://github.com/hrm619/yt_transcriber.git",
+    "cryptography>=46.0.6",
 ]
 
 [project.scripts]

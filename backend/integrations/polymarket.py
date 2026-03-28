@@ -24,16 +24,27 @@ class CLOBData:
     mid_price: float
 
 
+GAMMA_API_URL = "https://gamma-api.polymarket.com"
+
+
 async def search_markets(query: str) -> list[PolyMarket]:
-    """Search Polymarket markets by query."""
-    settings = get_settings()
+    """Search Polymarket markets by query via the Gamma API."""
     async with httpx.AsyncClient() as client:
         resp = await client.get(
-            f"{settings.polymarket_base_url}/markets",
-            params={"query": query},
+            f"{GAMMA_API_URL}/markets",
+            params={"limit": 20, "active": True, "closed": False},
         )
         resp.raise_for_status()
-        return [_parse_market(m) for m in resp.json() if isinstance(m, dict)]
+        markets = resp.json() if isinstance(resp.json(), list) else []
+
+    # Filter client-side by query terms
+    terms = query.lower().split()
+    return [
+        _parse_market(m) for m in markets
+        if isinstance(m, dict) and any(
+            term in m.get("question", "").lower() for term in terms
+        )
+    ]
 
 
 async def get_market(condition_id: str) -> PolyMarket:
@@ -82,6 +93,7 @@ def normalize_to_market_line(
     return {
         "event_id": event_id,
         "source": "polymarket",
+        "outcome_name": market.question,
         "market_key": market.condition_id,
         "implied_prob_pct": implied_prob,
         "american_odds": pct_to_american(implied_prob) if 0 < implied_prob < 100 else None,

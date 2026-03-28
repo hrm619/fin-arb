@@ -14,6 +14,15 @@ async function request(path, options = {}) {
 }
 
 export const api = {
+  // Sports browsing
+  listSports: () => request('/sports'),
+  listSportEvents: (sportKey, params = {}) => {
+    const qs = new URLSearchParams(
+      Object.fromEntries(Object.entries(params).filter(([, v]) => v != null))
+    ).toString();
+    return request(`/sports/${sportKey}/events${qs ? '?' + qs : ''}`);
+  },
+
   // Slates
   listSlates: () => request('/slates'),
   createSlate: (data) => request('/slates', { method: 'POST', body: JSON.stringify(data) }),
@@ -24,6 +33,7 @@ export const api = {
   // Events
   listEvents: (slateId) => request(`/slates/${slateId}/events`),
   createEvent: (slateId, data) => request(`/slates/${slateId}/events`, { method: 'POST', body: JSON.stringify(data) }),
+  createEventsBatch: (slateId, events) => request(`/slates/${slateId}/events/batch`, { method: 'POST', body: JSON.stringify({ events }) }),
   getEvent: (id) => request(`/events/${id}`),
   updateEvent: (id, data) => request(`/events/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteEvent: (id) => request(`/events/${id}`, { method: 'DELETE' }),

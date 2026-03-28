@@ -10,6 +10,11 @@ wheels/
 .venv
 .env
 
+# Secrets / keys
+fin-arb-api.txt
+*.pem
+*.key
+
 # Database
 *.db
 

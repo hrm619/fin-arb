@@ -45,7 +45,7 @@ def rank_slate(db: Session, slate_id: int) -> list[RankedEvent]:
             estimate = get_estimate(db, event.id)
         except ValueError:
             continue
-        best_line = get_best_line(db, event.id)
+        best_line = get_best_line(db, event.id, outcome_name=event.home_team)
         if best_line is None:
             continue
 

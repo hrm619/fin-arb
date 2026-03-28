@@ -28,6 +28,9 @@ class Settings:
     kalshi_api_key: str = field(
         default_factory=lambda: environ.get("KALSHI_API_KEY", "")
     )
+    kalshi_rsa_key_path: str = field(
+        default_factory=lambda: environ.get("KALSHI_RSA_KEY_PATH", "")
+    )
     kalshi_base_url: str = field(
         default_factory=lambda: environ.get(
             "KALSHI_BASE_URL", "https://trading-api.kalshi.com/trade-api/v2"

@@ -9,29 +9,38 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
 });
 
-const navStyle = ({ isActive }) => ({
-  color: isActive ? '#3b82f6' : '#aaa',
-  textDecoration: 'none',
-  fontWeight: isActive ? 'bold' : 'normal',
-});
+function NavItem({ to, children, end }) {
+  return (
+    <NavLink
+      to={to}
+      end={end}
+      className={({ isActive }) =>
+        `text-sm font-medium transition-colors hover:text-foreground ${isActive ? 'text-foreground' : 'text-muted-foreground'}`
+      }
+    >
+      {children}
+    </NavLink>
+  );
+}
 
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <nav style={{ display: 'flex', gap: '1.5rem', padding: '1rem', borderBottom: '1px solid #333', marginBottom: '1rem' }}>
-          <NavLink to="/" style={navStyle} end>Slates</NavLink>
-          <NavLink to="/edge" style={navStyle}>Edge</NavLink>
-          <NavLink to="/tracking" style={navStyle}>Tracking</NavLink>
+        <nav className="flex items-center gap-6 px-6 py-4 border-b border-border">
+          <span className="text-sm font-bold tracking-tight text-primary mr-2">fin-arb</span>
+          <NavItem to="/" end>Slates</NavItem>
+          <NavItem to="/edge">Edge</NavItem>
+          <NavItem to="/tracking">Tracking</NavItem>
         </nav>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 1rem' }}>
+        <main className="max-w-6xl mx-auto px-6 py-6">
           <Routes>
             <Route path="/" element={<SlateView />} />
             <Route path="/events/:id" element={<EventResearch />} />
             <Route path="/edge" element={<EdgeDashboard />} />
             <Route path="/tracking" element={<TrackingDashboard />} />
           </Routes>
-        </div>
+        </main>
       </BrowserRouter>
     </QueryClientProvider>
   );

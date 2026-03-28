@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from backend.database import get_db
 from backend.schemas.event import (
     ConfidenceTierUpdate,
+    EventBatchCreate,
     EventCreate,
     EventResearchResponse,
     EventResponse,
@@ -34,6 +35,21 @@ def create_event(slate_id: int, data: EventCreate, db: Session = Depends(get_db)
     """Add an event to a slate."""
     try:
         return event_service.create_event(db, slate_id, data)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post(
+    "/api/v1/slates/{slate_id}/events/batch",
+    response_model=list[EventResponse],
+    status_code=201,
+)
+def create_events_batch(
+    slate_id: int, data: EventBatchCreate, db: Session = Depends(get_db)
+):
+    """Add multiple events to a slate in one request."""
+    try:
+        return event_service.create_events_batch(db, slate_id, data)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 

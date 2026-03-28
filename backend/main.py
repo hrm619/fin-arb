@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI
 
-from backend.routers import edge, estimates, events, lines, signals, slates, tracking, transcripts
+from backend.routers import edge, estimates, events, lines, signals, slates, sports, tracking, transcripts
 
 app = FastAPI(title="Arb Tool", version="0.1.0")
 
@@ -14,6 +14,7 @@ app.include_router(edge.router)
 app.include_router(transcripts.router)
 app.include_router(signals.router)
 app.include_router(tracking.router)
+app.include_router(sports.router)
 
 
 @app.get("/health")

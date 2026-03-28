@@ -11,6 +11,7 @@ class MarketLineResponse(BaseModel):
     id: int
     event_id: int
     source: str
+    outcome_name: str | None
     market_key: str | None
     implied_prob_pct: float
     american_odds: int | None

@@ -35,10 +35,14 @@ def _setup_event(db):
     return event
 
 
-def _line_dict(event_id, source, implied_prob_pct, american_odds=None, decimal_odds=None):
+def _line_dict(
+    event_id, source, implied_prob_pct,
+    american_odds=None, decimal_odds=None, outcome_name=None,
+):
     return {
         "event_id": event_id,
         "source": source,
+        "outcome_name": outcome_name,
         "market_key": "h2h",
         "implied_prob_pct": implied_prob_pct,
         "american_odds": american_odds,
@@ -98,10 +102,10 @@ class TestGetBestLine:
 class TestDetectArbOpportunities:
     def test_finds_arb(self, db):
         event = _setup_event(db)
-        # Side A at 45%, complement of Side B (100-58=42%) → 45+42=87 < 97
+        # Chiefs at 45% (DK) + Bills at 48% (FD) = 93% < 97% threshold
         store_lines(db, event.id, [
-            _line_dict(event.id, "draftkings", 45.0),
-            _line_dict(event.id, "fanduel", 58.0),
+            _line_dict(event.id, "draftkings", 45.0, outcome_name="Chiefs"),
+            _line_dict(event.id, "fanduel", 48.0, outcome_name="Bills"),
         ])
         arbs = detect_arb_opportunities(db, event.id)
         assert len(arbs) == 1
@@ -110,8 +114,8 @@ class TestDetectArbOpportunities:
     def test_no_arb_when_probs_high(self, db):
         event = _setup_event(db)
         store_lines(db, event.id, [
-            _line_dict(event.id, "draftkings", 55.0),
-            _line_dict(event.id, "fanduel", 53.0),
+            _line_dict(event.id, "draftkings", 55.0, outcome_name="Chiefs"),
+            _line_dict(event.id, "fanduel", 53.0, outcome_name="Bills"),
         ])
         arbs = detect_arb_opportunities(db, event.id)
         assert len(arbs) == 0
@@ -119,8 +123,18 @@ class TestDetectArbOpportunities:
     def test_skips_same_source(self, db):
         event = _setup_event(db)
         store_lines(db, event.id, [
-            _line_dict(event.id, "draftkings", 45.0),
-            _line_dict(event.id, "draftkings", 58.0),
+            _line_dict(event.id, "draftkings", 45.0, outcome_name="Chiefs"),
+            _line_dict(event.id, "draftkings", 48.0, outcome_name="Bills"),
+        ])
+        arbs = detect_arb_opportunities(db, event.id)
+        assert len(arbs) == 0
+
+    def test_skips_same_outcome(self, db):
+        event = _setup_event(db)
+        # Same outcome from different books — not an arb
+        store_lines(db, event.id, [
+            _line_dict(event.id, "draftkings", 45.0, outcome_name="Chiefs"),
+            _line_dict(event.id, "fanduel", 43.0, outcome_name="Chiefs"),
         ])
         arbs = detect_arb_opportunities(db, event.id)
         assert len(arbs) == 0

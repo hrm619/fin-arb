@@ -10,6 +10,7 @@ class EventCreate(BaseModel):
     away_team: str
     sport: str
     league: str
+    external_event_id: str | None = None
     event_date: datetime
     market_type: str
     spread_value: float | None = None
@@ -17,11 +18,16 @@ class EventCreate(BaseModel):
     confidence_tier: str | None = None
 
 
+class EventBatchCreate(BaseModel):
+    events: list["EventCreate"]
+
+
 class EventUpdate(BaseModel):
     home_team: str | None = None
     away_team: str | None = None
     sport: str | None = None
     league: str | None = None
+    external_event_id: str | None = None
     event_date: datetime | None = None
     market_type: str | None = None
     spread_value: float | None = None
@@ -43,6 +49,7 @@ class EventResponse(BaseModel):
     away_team: str
     sport: str
     league: str
+    external_event_id: str | None
     event_date: datetime
     market_type: str
     spread_value: float | None

@@ -90,8 +90,10 @@ async def get_odds(
         "apiKey": settings.odds_api_key,
         "regions": "us",
         "markets": markets,
-        "eventIds": event_id,
+        "oddsFormat": "american",
     }
+    if event_id:
+        params["eventIds"] = event_id
     if bookmakers:
         params["bookmakers"] = bookmakers
     async with httpx.AsyncClient() as client:
@@ -139,6 +141,7 @@ def normalize_to_market_line(
     return {
         "event_id": event_id,
         "source": odds_line.bookmaker,
+        "outcome_name": odds_line.outcome_name,
         "market_key": odds_line.market_key,
         "implied_prob_pct": implied_prob,
         "american_odds": odds_line.price,

@@ -18,6 +18,7 @@ class Event(Base):
     away_team: Mapped[str] = mapped_column(String, nullable=False)
     sport: Mapped[str] = mapped_column(String, nullable=False)
     league: Mapped[str] = mapped_column(String, nullable=False)
+    external_event_id: Mapped[Optional[str]] = mapped_column(String, default=None)
     event_date: Mapped[datetime] = mapped_column(nullable=False)
     market_type: Mapped[str] = mapped_column(String, nullable=False)
     spread_value: Mapped[Optional[float]] = mapped_column(default=None)

@@ -37,15 +37,41 @@ async def fetch_lines(db: Session, event_id: int) -> list[MarketLine]:
 async def fetch_odds_api_lines(event) -> list[dict]:
     """Fetch lines from The Odds API for a given event."""
     sport_key = event.sport
+    market_key = _market_type_to_odds_api(event.market_type)
+
+    # Use stored event ID if available, fall back to fuzzy team match
+    api_event_id = event.external_event_id
+    if not api_event_id:
+        api_event_id = await _find_odds_api_event(sport_key, event)
+    if not api_event_id:
+        logger.warning(
+            "No Odds API event found for %s vs %s", event.home_team, event.away_team
+        )
+        return []
+
     odds_lines, raw = await odds_api.get_odds(
         sport_key=sport_key,
-        event_id="",  # fetch all for sport, filter client-side
-        markets=_market_type_to_odds_api(event.market_type),
+        event_id=api_event_id,
+        markets=market_key,
     )
     return [
         odds_api.normalize_to_market_line(line, event.id, raw)
         for line in odds_lines
     ]
+
+
+async def _find_odds_api_event(sport_key: str, event) -> str | None:
+    """Find the Odds API event ID matching an event's teams."""
+    api_events = await odds_api.get_events(sport_key)
+    home = event.home_team.lower()
+    away = event.away_team.lower()
+    for api_event in api_events:
+        api_home = api_event.home_team.lower()
+        api_away = api_event.away_team.lower()
+        if home in api_home or api_home in home:
+            if away in api_away or api_away in away:
+                return api_event.id
+    return None
 
 
 async def fetch_kalshi_lines(event) -> list[dict]:
@@ -85,9 +111,17 @@ def get_lines(db: Session, event_id: int) -> list[MarketLine]:
     )
 
 
-def get_best_line(db: Session, event_id: int) -> MarketLine | None:
-    """Return the line with the lowest implied probability (best value)."""
+def get_best_line(
+    db: Session, event_id: int, outcome_name: str | None = None
+) -> MarketLine | None:
+    """Return the line with the lowest implied probability (best value).
+
+    If outcome_name is provided, only consider lines for that outcome.
+    """
     lines = get_lines(db, event_id)
+    if outcome_name:
+        lines = [l for l in lines if l.outcome_name and
+                 outcome_name.lower() in l.outcome_name.lower()]
     if not lines:
         return None
     return min(lines, key=lambda l: l.implied_prob_pct)
@@ -96,28 +130,30 @@ def get_best_line(db: Session, event_id: int) -> MarketLine | None:
 def detect_arb_opportunities(
     db: Session, event_id: int, threshold: float = 0.03
 ) -> list[ArbOpportunity]:
-    """Find cross-market arb opportunities for an event."""
+    """Find cross-market arb opportunities by pairing opposite outcomes."""
     lines = get_lines(db, event_id)
     opportunities: list[ArbOpportunity] = []
 
     for line_a, line_b in combinations(lines, 2):
         if line_a.source == line_b.source:
             continue
-        # Check both directions: a vs complement(b), b vs complement(a)
-        for la, lb in [(line_a, line_b), (line_b, line_a)]:
-            complement = 100 - lb.implied_prob_pct
-            if is_arb_opportunity(la.implied_prob_pct, complement, threshold):
-                combined = la.implied_prob_pct + complement
-                opportunities.append(
-                    ArbOpportunity(
-                        source_a=la.source,
-                        source_b=lb.source,
-                        implied_prob_a=la.implied_prob_pct,
-                        implied_prob_b=complement,
-                        combined_prob=combined,
-                        arb_edge_pct=round(100 - combined, 4),
-                    )
+        # Only pair lines on different outcomes (e.g., Team A vs Team B)
+        if not line_a.outcome_name or not line_b.outcome_name:
+            continue
+        if line_a.outcome_name == line_b.outcome_name:
+            continue
+        combined = line_a.implied_prob_pct + line_b.implied_prob_pct
+        if is_arb_opportunity(line_a.implied_prob_pct, line_b.implied_prob_pct, threshold):
+            opportunities.append(
+                ArbOpportunity(
+                    source_a=line_a.source,
+                    source_b=line_b.source,
+                    implied_prob_a=line_a.implied_prob_pct,
+                    implied_prob_b=line_b.implied_prob_pct,
+                    combined_prob=combined,
+                    arb_edge_pct=round(100 - combined, 4),
                 )
+            )
 
     return sorted(opportunities, key=lambda a: a.arb_edge_pct, reverse=True)
 

@@ -15,6 +15,7 @@ class MarketLine(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     event_id: Mapped[int] = mapped_column(ForeignKey("events.id"), nullable=False)
     source: Mapped[str] = mapped_column(String, nullable=False)
+    outcome_name: Mapped[Optional[str]] = mapped_column(String, default=None)
     market_key: Mapped[Optional[str]] = mapped_column(String, default=None)
     implied_prob_pct: Mapped[float] = mapped_column(nullable=False)
     american_odds: Mapped[Optional[int]] = mapped_column(default=None)
