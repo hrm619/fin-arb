@@ -9,47 +9,85 @@ Financial arbitrage research and edge detection platform. Compares user probabil
 ## Tech Stack
 
 - **Backend**: FastAPI (Python 3.13+), SQLAlchemy + SQLite, Alembic migrations
-- **Frontend**: React 18 + Vite, Zustand state, TanStack Query
-- **External APIs**: The Odds API, Kalshi, Polymarket, ESPN, Weather, OpenAI Whisper, Anthropic Claude
-- **Package manager**: uv (not pip)
-- **Testing**: pytest + pytest-asyncio
+- **Frontend**: React 19 + Vite 8, Tailwind CSS + shadcn/ui, Zustand (persisted), TanStack Query v5
+- **External APIs**: The Odds API (sportsbook lines), Kalshi (RSA-PSS auth), Polymarket (Gamma API), ESPN, Weather, OpenAI Whisper, Anthropic Claude
+- **Package manager**: uv (backend), npm (frontend)
+- **Testing**: pytest + pytest-asyncio (228 tests)
 
 ## Common Commands
 
 ```bash
+# Backend
 uv sync                          # Install dependencies
-uv run fin-arb                   # Run CLI entrypoint
-uv run pytest                    # Run all tests
+uv run pytest                    # Run all tests (228 passing)
 uv run pytest tests/test_foo.py  # Run single test file
 uv run pytest -k "test_name"    # Run single test by name
 uv run alembic upgrade head      # Apply database migrations
 uv run alembic revision --autogenerate -m "description"  # Create migration
-uv run uvicorn backend.main:app --reload  # Run FastAPI dev server
+uv run uvicorn backend.main:app --reload  # Run FastAPI dev server (port 8000)
+
+# Frontend
+cd frontend && npm install       # Install dependencies
+npm run dev                      # Run Vite dev server (port 5173, proxies /api to :8000)
+npx vite build                   # Production build
 ```
 
 ## Architecture
-
-Target structure (see `technical-spec.md` for full detail):
 
 ```
 backend/
   main.py, config.py, database.py
   models/        # SQLAlchemy ORM (7 tables: slates, events, transcripts, signals, user_estimates, market_lines, outcomes)
-  schemas/       # Pydantic request/response models
-  routers/       # Thin FastAPI routes (validation + one service call)
-  services/      # Business logic (8 modules, ~53 functions)
-  integrations/  # External API wrappers (odds, kalshi, polymarket, espn, weather, whisper)
-  utils/         # Pure functions: odds conversion, Kelly criterion, edge calculation
+  schemas/       # Pydantic request/response models (including sports.py for Odds API browsing)
+  routers/       # Thin FastAPI routes: slates, events, lines, estimates, edge, signals, transcripts, tracking, sports
+  services/      # Business logic: slate, event, line, estimate, edge, signal, transcript, tracking, sports
+  integrations/  # External API wrappers: odds_api, kalshi (RSA-PSS), polymarket (Gamma API), espn, weather
+  utils/         # Pure functions: odds_converter, kelly, edge_calculator
+  migrations/    # Alembic migration scripts
 frontend/
-  src/pages/     # 4 pages: Slate, Event Research, Edge Dashboard, Tracking
-  src/components/
-  src/store/     # Zustand
-  src/api/       # TanStack Query hooks
+  src/pages/           # 4 pages: SlateView, EventResearch, EdgeDashboard, TrackingDashboard
+  src/components/ui/   # shadcn/ui primitives (button, card, table, checkbox, select, dialog, badge, input, label, separator, skeleton)
+  src/components/slate/    # GameBrowser, SelectedGamesPanel, ShortlistPanel, CreateSlateForm, AddEventForm, EventRow
+  src/components/research/ # LinesPanel (with matchup summary), EstimatePanel, TranscriptPanel, SignalsPanel
+  src/store/           # Zustand (persisted currentSlateId + selectedGames for cross-league selection)
+  src/api/             # REST client + TanStack Query hooks (35+ hooks)
+  src/lib/             # Tailwind merge utility (cn)
 ```
 
-**Data flow**: Transcripts → Signal extraction (Claude) → User probability estimates → Market lines (multi-source) → Edge computation → Kelly sizing → Performance tracking
+## Key Data Flow
 
-## Implementation Rules (from claude-code-prompt.md)
+1. **Sports browsing**: `GET /api/v1/sports` → `GET /api/v1/sports/{key}/events` (Odds API, cached with TTL)
+2. **Slate building**: Browse leagues → checkbox-select games → batch save (`POST /slates/{id}/events/batch`)
+3. **Line fetching**: Uses stored `external_event_id` from Odds API (falls back to fuzzy team match for legacy events)
+4. **Edge detection**: User estimate vs best market line for matching outcome → raw edge → Kelly sizing
+5. **Arb detection**: Pairs opposite outcomes across different bookmakers
+6. **Signal extraction**: Transcripts → Claude API → structured signals (injury, scheme, sentiment, line_commentary)
+
+## API Endpoints
+
+### Core CRUD
+- `GET/POST /api/v1/slates` — Slate management
+- `GET/POST /api/v1/slates/{id}/events` — Events on a slate
+- `POST /api/v1/slates/{id}/events/batch` — Batch event creation (from game browser)
+- `POST /api/v1/events/{id}/estimate` — Submit probability estimate (locks on first submit, 409 on retry)
+- `POST /api/v1/events/{id}/outcome` — Grade an event result
+
+### Market Data
+- `GET /api/v1/sports` — Active sports from Odds API (1hr cache)
+- `GET /api/v1/sports/{key}/events?date_from=&date_to=` — Upcoming events (5min cache)
+- `POST /api/v1/events/{id}/lines/fetch` — Fetch lines from all sources (Odds API + Kalshi + Polymarket)
+- `GET /api/v1/events/{id}/lines` — Stored lines
+- `GET /api/v1/events/{id}/lines/arb` — Cross-market arb opportunities
+
+### Analysis
+- `GET /api/v1/slates/{id}/edge` — Ranked events by weighted edge score
+- `GET /api/v1/slates/{id}/shortlist` — Top N events
+- `GET /api/v1/slates/{id}/arb` — All arb opportunities across slate
+- `POST /api/v1/transcripts/{id}/extract` — LLM signal extraction
+- `GET /api/v1/tracking/summary` — Performance metrics
+- `GET /api/v1/tracking/export` — CSV export
+
+## Implementation Rules
 
 - **One function = one responsibility.** No function exceeds 30 lines.
 - **Typed everything**: all functions have type annotations; use Pydantic/dataclasses for inputs/outputs.
@@ -58,23 +96,34 @@ frontend/
 - **Fail loudly** with specific exceptions. All external API calls wrapped in try/except with logging.
 - **No hardcoded values** — use environment variables via config.
 - **Utilities are tested first** before building services that depend on them.
+- **Frontend**: shadcn/ui components with Tailwind CSS. Dark theme. Zustand for cross-component state. TanStack Query for server state with cache invalidation on mutations.
 
-## Implementation Sequence
+## Integration Notes
 
-Build in this order (each phase complete before next):
-1. Database models + Alembic migrations
-2. Utility functions (odds converter, Kelly, edge calculator) — **test first**
-3. Slate + Event services/routes
-4. Odds API integration + Line service
-5. Estimate service
-6. Edge service + routes
-7. Transcript ingestion
-8. Signal extraction (Claude API)
-9. Kalshi + Polymarket integrations
-10. Tracking service
-11. ESPN + Weather integrations
-12. Frontend (React)
+- **Kalshi**: Uses RSA-PSS signing (not bearer token). Key at `KALSHI_RSA_KEY_PATH`. API domain: `api.elections.kalshi.com`.
+- **Polymarket**: Uses Gamma API (`gamma-api.polymarket.com`) for market search, CLOB API for order book data.
+- **Odds API**: Must request `oddsFormat=american`. Events matched by stored `external_event_id` or fuzzy team name fallback.
+- **Line fetching**: Orchestrated across all 3 sources with graceful failure per source.
+- **Arb detection**: Pairs lines with different `outcome_name` from different `source` bookmakers.
+- **Edge ranking**: Compares user estimate against best market line for the *home team* outcome specifically.
 
 ## Environment Variables
 
-Required keys (stored in `.env`, never committed): `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `ODDS_API_KEY`, `KALSHI_API_KEY`, `KALSHI_BASE_URL`, `POLYMARKET_BASE_URL`, `WEATHER_API_KEY`, `DATABASE_URL`, `KELLY_BANKROLL`, `ARB_THRESHOLD_PCT`, `EDGE_THRESHOLD_PCT`, `LLM_MODEL`, `SHORTLIST_SIZE`
+Required keys (stored in `.env`, never committed):
+
+```
+ANTHROPIC_API_KEY          # Claude API for signal extraction
+OPENAI_API_KEY             # Whisper for transcript ingestion
+ODDS_API_KEY               # The Odds API for sportsbook lines
+KALSHI_API_KEY             # Kalshi API key ID
+KALSHI_RSA_KEY_PATH        # Path to Kalshi RSA private key file
+KALSHI_BASE_URL            # https://api.elections.kalshi.com/trade-api/v2
+POLYMARKET_BASE_URL        # https://clob.polymarket.com
+WEATHER_API_KEY            # OpenWeatherMap
+DATABASE_URL               # sqlite:///./arb_tool.db
+KELLY_BANKROLL             # Starting bankroll for Kelly sizing
+ARB_THRESHOLD_PCT          # Min combined prob gap for arb detection
+EDGE_THRESHOLD_PCT         # Min edge to include in rankings
+LLM_MODEL                  # Claude model for signal extraction
+SHORTLIST_SIZE             # Number of events in shortlist
+```
