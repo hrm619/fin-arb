@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useSlates, useCreateSlate, useDeleteSlate, useEvents, useFetchLines } from '@/api/hooks';
+import { useSlates, useCreateSlate, useDeleteSlate, useEvents, useFetchLines, useLines } from '@/api/hooks';
 import { useSlateStore } from '@/store/slateStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -127,6 +127,85 @@ function FetchLinesButton({ eventId }) {
   );
 }
 
+function summarizeLines(lines) {
+  if (!lines?.length) return null;
+  const byOutcome = {};
+  for (const l of lines) {
+    const name = l.outcome_name || 'Unknown';
+    if (!byOutcome[name]) byOutcome[name] = [];
+    byOutcome[name].push(l);
+  }
+  return Object.entries(byOutcome)
+    .map(([name, entries]) => ({
+      name,
+      avgProb: entries.reduce((a, b) => a + b.implied_prob_pct, 0) / entries.length,
+    }))
+    .sort((a, b) => b.avgProb - a.avgProb);
+}
+
+function OddsPill({ outcomes }) {
+  if (!outcomes) return <span className="text-xs text-muted-foreground">—</span>;
+  return (
+    <div className="flex items-center gap-1.5">
+      {outcomes.map((o, i) => {
+        const isFav = i === 0;
+        return (
+          <span
+            key={o.name}
+            className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-mono"
+            style={{
+              background: isFav ? 'rgba(34,197,94,0.1)' : 'rgba(249,115,22,0.1)',
+              color: isFav ? '#22c55e' : '#f97316',
+              border: `1px solid ${isFav ? 'rgba(34,197,94,0.2)' : 'rgba(249,115,22,0.2)'}`,
+            }}
+          >
+            <span className="max-w-[80px] truncate opacity-70 text-[10px]">{o.name.split(' ').pop()}</span>
+            <span className="font-semibold">{o.avgProb.toFixed(0)}%</span>
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function EventRowWithOdds({ ev }) {
+  const { data: lines } = useLines(ev.id);
+  const outcomes = summarizeLines(lines);
+
+  return (
+    <TableRow>
+      <TableCell className="font-medium">
+        {ev.away_team} <span className="text-muted-foreground">@</span> {ev.home_team}
+      </TableCell>
+      <TableCell>
+        <OddsPill outcomes={outcomes} />
+      </TableCell>
+      <TableCell>
+        <Badge variant="outline">{ev.league}</Badge>
+      </TableCell>
+      <TableCell className="text-muted-foreground text-sm">
+        {formatDateTime(ev.event_date)}
+      </TableCell>
+      <TableCell className="capitalize text-sm">{ev.market_type}</TableCell>
+      <TableCell>
+        <Badge variant={ev.status === 'open' ? 'secondary' : 'default'} className="text-xs">
+          {ev.status}
+        </Badge>
+      </TableCell>
+      <TableCell className="text-right">
+        <div className="flex items-center justify-end gap-2">
+          <FetchLinesButton eventId={ev.id} />
+          <Button variant="ghost" size="sm" asChild>
+            <Link to={`/events/${ev.id}`}>
+              Research <ArrowRight className="h-3.5 w-3.5 ml-1" />
+            </Link>
+          </Button>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
 function EventsTable({ slateId }) {
   const { data: events, isLoading } = useEvents(slateId);
 
@@ -139,6 +218,7 @@ function EventsTable({ slateId }) {
         <TableHeader>
           <TableRow className="bg-muted/30">
             <TableHead>Matchup</TableHead>
+            <TableHead>Odds</TableHead>
             <TableHead>League</TableHead>
             <TableHead>Date</TableHead>
             <TableHead>Market</TableHead>
@@ -148,33 +228,7 @@ function EventsTable({ slateId }) {
         </TableHeader>
         <TableBody>
           {events.map(ev => (
-            <TableRow key={ev.id}>
-              <TableCell className="font-medium">
-                {ev.away_team} <span className="text-muted-foreground">@</span> {ev.home_team}
-              </TableCell>
-              <TableCell>
-                <Badge variant="outline">{ev.league}</Badge>
-              </TableCell>
-              <TableCell className="text-muted-foreground text-sm">
-                {formatDateTime(ev.event_date)}
-              </TableCell>
-              <TableCell className="capitalize text-sm">{ev.market_type}</TableCell>
-              <TableCell>
-                <Badge variant={ev.status === 'open' ? 'secondary' : 'default'} className="text-xs">
-                  {ev.status}
-                </Badge>
-              </TableCell>
-              <TableCell className="text-right">
-                <div className="flex items-center justify-end gap-2">
-                  <FetchLinesButton eventId={ev.id} />
-                  <Button variant="ghost" size="sm" asChild>
-                    <Link to={`/events/${ev.id}`}>
-                      Research <ArrowRight className="h-3.5 w-3.5 ml-1" />
-                    </Link>
-                  </Button>
-                </div>
-              </TableCell>
-            </TableRow>
+            <EventRowWithOdds key={ev.id} ev={ev} />
           ))}
         </TableBody>
       </Table>
