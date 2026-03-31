@@ -7,11 +7,12 @@ Financial arbitrage research and edge detection platform. Compare your probabili
 1. **Browse real games** — Pull upcoming events from The Odds API across all major sports leagues
 2. **Build a slate** — Select games from multiple leagues into a weekly slate
 3. **Fetch live odds** — Pull lines from 9+ sportsbooks, Kalshi, and Polymarket in one click
-4. **Research events** — Ingest YouTube transcripts, extract signals with Claude, and see market consensus summaries with color-coded matchup cards
-5. **Submit estimates** — Lock in your probability estimate for each event
-6. **Find edges** — Auto-rank events by edge (your estimate vs market), weighted by confidence, with Kelly criterion stake sizing
-7. **Detect arbitrage** — Cross-market arb detection across bookmakers
-8. **Track performance** — Win rate, ROI, breakdowns by sport/market/confidence, CSV export
+4. **Research events** — Ingest YouTube transcripts, extract directed signals with Claude, view structural priors from validated edge registry
+5. **Get suggested estimates** — Anchor-adjust model combines sharpest market line + structural factors + signal adjustments into a decomposed probability estimate
+6. **Submit estimates** — Accept the suggestion or override with your own probability (override note required for tracking)
+7. **Find edges** — Auto-rank events by edge, weighted by composite confidence score, with Kelly criterion stake sizing
+8. **Detect arbitrage** — Cross-market arb detection across bookmakers
+9. **Track performance** — Win rate, ROI, breakdowns by sport/market/confidence, CSV export
 
 ## Quick start
 
@@ -62,17 +63,17 @@ Open **http://localhost:5173**
 | Frontend | React 19, Vite 8, Tailwind CSS, shadcn/ui |
 | State | Zustand (persisted), TanStack Query v5 |
 | APIs | The Odds API, Kalshi, Polymarket, Claude, Whisper |
-| Testing | pytest (228 tests) |
+| Testing | pytest (294 tests) |
 
 ## Architecture
 
 ```
 backend/
-  routers/       → Thin API routes (9 routers)
-  services/      → Business logic (9 services)
+  routers/       → Thin API routes (10 routers, including composer)
+  services/      → Business logic (15 services, including estimate engine: structural_priors, stats_provider, market_anchor, signal_aggregator, confidence_scorer, composer)
   integrations/  → External API wrappers (Odds API, Kalshi, Polymarket, ESPN, Weather)
-  models/        → SQLAlchemy ORM (7 tables)
-  schemas/       → Pydantic models
+  models/        → SQLAlchemy ORM (8 tables, including suggested_estimates)
+  schemas/       → Pydantic models (including estimate engine schemas)
   utils/         → Pure functions (odds conversion, Kelly criterion, edge calculation)
 
 frontend/
@@ -91,14 +92,21 @@ Browse leagues via dropdown, see real upcoming games, select with checkboxes acr
 ### Market Lines Summary
 Color-coded matchup cards showing consensus probability, best odds, best book, and spread range per outcome. Edge callout when you've submitted an estimate.
 
+### Estimate Engine
+Anchor-adjust model produces suggested estimates with full decomposition:
+- **Market anchor**: Sharpest available line (Pinnacle/Circa preferred), vig removed
+- **Structural priors**: Validated edges from factor-research backtesting, quality-weighted
+- **Signal adjustments**: Directed signals with type-specific caps (injury ±5%, scheme ±2%, etc.)
+- **Composite confidence**: Replaces manual tier — combines structural strength, signal coherence, and line confirmation
+
 ### Edge Dashboard
-Events ranked by weighted edge score (raw edge x confidence tier). Kelly criterion sizing with configurable bankroll. Sortable by edge, Kelly stake, or confidence.
+Events ranked by weighted edge score (raw edge x composite confidence). Kelly criterion sizing with configurable bankroll. Sortable by edge, Kelly stake, or confidence.
 
 ### Cross-Market Arbitrage
 Detects arb opportunities by pairing opposite outcomes across different sportsbooks. Scans all events on a slate.
 
 ### Signal Extraction
-Ingest YouTube transcripts (via Whisper) or paste text. Claude extracts structured signals: injury reports, scheme analysis, sentiment, line commentary — ranked by relevance.
+Ingest YouTube transcripts (via Whisper) or paste text. Claude extracts structured signals with direction (+1 home, -1 away): injury reports, scheme analysis, sentiment, line commentary, motivation — ranked by relevance.
 
 ## Environment variables
 
@@ -117,6 +125,11 @@ ARB_THRESHOLD_PCT=         # e.g. 3.0
 EDGE_THRESHOLD_PCT=        # e.g. 3.0
 LLM_MODEL=                 # e.g. claude-sonnet-4-20250514
 SHORTLIST_SIZE=            # e.g. 6
+CONTRACTS_DIR=             # ~/.fin-arb/contracts
+EDGE_REGISTRY_PATH=        # Path to Contract 2 edge registry JSON
+FACTOR_RESEARCH_DB_PATH=   # Path to factor-research SQLite DB
+SHARP_SOURCES=             # pinnacle,circa
+MARKET_EFFICIENCY_DISCOUNT= # 0.5
 ```
 
 ## License

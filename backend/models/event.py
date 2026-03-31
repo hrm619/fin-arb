@@ -46,3 +46,6 @@ class Event(Base):
     outcome: Mapped[Optional["Outcome"]] = relationship(  # noqa: F821
         back_populates="event", cascade="all, delete-orphan", uselist=False
     )
+    suggested_estimate: Mapped[Optional["SuggestedEstimate"]] = relationship(  # noqa: F821
+        back_populates="event", cascade="all, delete-orphan", uselist=False
+    )

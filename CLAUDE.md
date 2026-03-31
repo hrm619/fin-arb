@@ -12,7 +12,7 @@ Financial arbitrage research and edge detection platform. Compares user probabil
 - **Frontend**: React 19 + Vite 8, Tailwind CSS + shadcn/ui, Zustand (persisted), TanStack Query v5
 - **External APIs**: The Odds API (sportsbook lines), Kalshi (RSA-PSS auth), Polymarket (Gamma API), ESPN, Weather, OpenAI Whisper, Anthropic Claude
 - **Package manager**: uv (backend), npm (frontend)
-- **Testing**: pytest + pytest-asyncio (228 tests)
+- **Testing**: pytest + pytest-asyncio (294 tests)
 
 ## Common Commands
 
@@ -37,10 +37,10 @@ npx vite build                   # Production build
 ```
 backend/
   main.py, config.py, database.py
-  models/        # SQLAlchemy ORM (7 tables: slates, events, transcripts, signals, user_estimates, market_lines, outcomes)
-  schemas/       # Pydantic request/response models (including sports.py for Odds API browsing)
-  routers/       # Thin FastAPI routes: slates, events, lines, estimates, edge, signals, transcripts, tracking, sports
-  services/      # Business logic: slate, event, line, estimate, edge, signal, transcript, tracking, sports
+  models/        # SQLAlchemy ORM (8 tables: slates, events, transcripts, signals, user_estimates, market_lines, outcomes, suggested_estimates)
+  schemas/       # Pydantic request/response models (including structural_priors, market_anchor, signal_aggregator, confidence_scorer, composer)
+  routers/       # Thin FastAPI routes: slates, events, lines, estimates, edge, signals, transcripts, tracking, sports, composer
+  services/      # Business logic: slate, event, line, estimate, edge, signal, transcript, tracking, sports + estimate engine (structural_priors, stats_provider, market_anchor, signal_aggregator, confidence_scorer, composer)
   integrations/  # External API wrappers: odds_api, kalshi (RSA-PSS), polymarket (Gamma API), espn, weather
   utils/         # Pure functions: odds_converter, kelly, edge_calculator
   migrations/    # Alembic migration scripts
@@ -48,7 +48,7 @@ frontend/
   src/pages/           # 4 pages: SlateView, EventResearch, EdgeDashboard, TrackingDashboard
   src/components/ui/   # shadcn/ui primitives (button, card, table, checkbox, select, dialog, badge, input, label, separator, skeleton)
   src/components/slate/    # GameBrowser, SelectedGamesPanel, ShortlistPanel, CreateSlateForm, AddEventForm, EventRow
-  src/components/research/ # LinesPanel (with matchup summary), EstimatePanel, TranscriptPanel, SignalsPanel
+  src/components/research/ # LinesPanel, EstimatePanel, TranscriptPanel, SignalsPanel, StructuralPriorsPanel, SuggestedEstimatePanel
   src/store/           # Zustand (persisted currentSlateId + selectedGames for cross-league selection)
   src/api/             # REST client + TanStack Query hooks (35+ hooks)
   src/lib/             # Tailwind merge utility (cn)
@@ -59,9 +59,10 @@ frontend/
 1. **Sports browsing**: `GET /api/v1/sports` → `GET /api/v1/sports/{key}/events` (Odds API, cached with TTL)
 2. **Slate building**: Browse leagues → checkbox-select games → batch save (`POST /slates/{id}/events/batch`)
 3. **Line fetching**: Uses stored `external_event_id` from Odds API (falls back to fuzzy team match for legacy events)
-4. **Edge detection**: User estimate vs best market line for matching outcome → raw edge → Kelly sizing
-5. **Arb detection**: Pairs opposite outcomes across different bookmakers
-6. **Signal extraction**: Transcripts → Claude API → structured signals (injury, scheme, sentiment, line_commentary)
+4. **Estimate engine**: Market anchor (sharpest line, vig-free) → structural adjustments (from Contract 2 edge registry) → signal adjustments (directed, type-capped) → suggested estimate with composite confidence
+5. **Edge detection**: User estimate vs best market line → raw edge → composite confidence weighting → Kelly sizing
+6. **Arb detection**: Pairs opposite outcomes across different bookmakers
+7. **Signal extraction**: Transcripts → Claude API → structured signals with direction (injury, scheme, sentiment, line_commentary, motivation)
 
 ## API Endpoints
 
@@ -79,11 +80,17 @@ frontend/
 - `GET /api/v1/events/{id}/lines` — Stored lines
 - `GET /api/v1/events/{id}/lines/arb` — Cross-market arb opportunities
 
+### Estimate Engine
+- `GET /api/v1/events/{id}/suggested-estimate` — Get/generate suggested estimate with decomposition
+- `POST /api/v1/events/{id}/suggested-estimate` — Force regeneration
+- `GET /api/v1/events/{id}/structural-priors` — Applicable validated factors for a matchup
+- `PATCH /api/v1/signals/{id}/direction` — Set signal direction (+1 home, -1 away)
+
 ### Analysis
-- `GET /api/v1/slates/{id}/edge` — Ranked events by weighted edge score
+- `GET /api/v1/slates/{id}/edge` — Ranked events by weighted edge score (uses composite confidence when available)
 - `GET /api/v1/slates/{id}/shortlist` — Top N events
 - `GET /api/v1/slates/{id}/arb` — All arb opportunities across slate
-- `POST /api/v1/transcripts/{id}/extract` — LLM signal extraction
+- `POST /api/v1/transcripts/{id}/extract` — LLM signal extraction (now includes direction)
 - `GET /api/v1/tracking/summary` — Performance metrics
 - `GET /api/v1/tracking/export` — CSV export
 
@@ -126,4 +133,9 @@ ARB_THRESHOLD_PCT          # Min combined prob gap for arb detection
 EDGE_THRESHOLD_PCT         # Min edge to include in rankings
 LLM_MODEL                  # Claude model for signal extraction
 SHORTLIST_SIZE             # Number of events in shortlist
+CONTRACTS_DIR              # ~/.fin-arb/contracts (shared contract directory)
+EDGE_REGISTRY_PATH         # Path to Contract 2 edge registry JSON
+FACTOR_RESEARCH_DB_PATH    # Path to factor-research SQLite DB for team metrics
+SHARP_SOURCES              # Comma-separated sharp bookmaker names (default: pinnacle,circa)
+MARKET_EFFICIENCY_DISCOUNT # 0-1, fraction of edge assumed already priced in (default: 0.5)
 ```

@@ -5,6 +5,7 @@ from backend.models.signal import Signal
 from backend.models.estimate import UserEstimate
 from backend.models.market_line import MarketLine
 from backend.models.outcome import Outcome
+from backend.models.suggested_estimate import SuggestedEstimate
 
 __all__ = [
     "Slate",
@@ -14,4 +15,5 @@ __all__ = [
     "UserEstimate",
     "MarketLine",
     "Outcome",
+    "SuggestedEstimate",
 ]

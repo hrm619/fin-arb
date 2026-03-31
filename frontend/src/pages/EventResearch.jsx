@@ -1,7 +1,9 @@
 import { useParams, Link } from 'react-router-dom';
-import { useEventResearch } from '../api/hooks';
+import { useEventResearch, useEstimate } from '../api/hooks';
 import EstimatePanel from '../components/research/EstimatePanel';
 import LinesPanel from '../components/research/LinesPanel';
+import StructuralPriorsPanel from '../components/research/StructuralPriorsPanel';
+import SuggestedEstimatePanel from '../components/research/SuggestedEstimatePanel';
 import TranscriptPanel from '../components/research/TranscriptPanel';
 import SignalsPanel from '../components/research/SignalsPanel';
 
@@ -13,6 +15,8 @@ export default function EventResearch() {
   if (!research) return <p>Event not found.</p>;
 
   const { event } = research;
+  const { data: estimate } = useEstimate(event.id);
+  const isLocked = !!estimate;
 
   return (
     <div>
@@ -31,10 +35,12 @@ export default function EventResearch() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
         <div>
+          <SuggestedEstimatePanel eventId={event.id} isLocked={isLocked} />
           <EstimatePanel eventId={event.id} />
           <LinesPanel eventId={event.id} />
         </div>
         <div>
+          <StructuralPriorsPanel eventId={event.id} />
           <TranscriptPanel eventId={event.id} />
           <SignalsPanel eventId={event.id} />
         </div>

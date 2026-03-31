@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 from functools import lru_cache
 from os import environ
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -58,6 +59,29 @@ class Settings:
     )
     shortlist_size: int = field(
         default_factory=lambda: int(environ.get("SHORTLIST_SIZE", "6"))
+    )
+    contracts_dir: str = field(
+        default_factory=lambda: environ.get(
+            "CONTRACTS_DIR", str(Path.home() / ".fin-arb" / "contracts")
+        )
+    )
+    edge_registry_path: str = field(
+        default_factory=lambda: environ.get("EDGE_REGISTRY_PATH", "")
+    )
+    factor_research_db_path: str = field(
+        default_factory=lambda: environ.get(
+            "FACTOR_RESEARCH_DB_PATH",
+            str(Path(__file__).resolve().parent.parent.parent
+                / "factor-research" / "factor_research.db"),
+        )
+    )
+    sharp_sources: str = field(
+        default_factory=lambda: environ.get("SHARP_SOURCES", "pinnacle,circa")
+    )
+    market_efficiency_discount: float = field(
+        default_factory=lambda: float(
+            environ.get("MARKET_EFFICIENCY_DISCOUNT", "0.5")
+        )
     )
 
 

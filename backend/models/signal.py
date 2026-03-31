@@ -21,6 +21,7 @@ class Signal(Base):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     relevance_score: Mapped[Optional[float]] = mapped_column(default=None)
     timestamp_ref: Mapped[Optional[str]] = mapped_column(String, default=None)
+    direction: Mapped[Optional[int]] = mapped_column(default=None)
     user_flag: Mapped[Optional[str]] = mapped_column(String, default=None)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 

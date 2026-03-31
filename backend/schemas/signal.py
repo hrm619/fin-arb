@@ -11,10 +11,15 @@ class SignalData(BaseModel):
     content: str
     relevance_score: float
     timestamp_ref: str | None = None
+    direction: int | None = None  # +1 favors home, -1 favors away
 
 
 class SignalFlagUpdate(BaseModel):
     user_flag: str  # "used_in_pricing" or "dismissed"
+
+
+class SignalDirectionUpdate(BaseModel):
+    direction: int  # +1 or -1
 
 
 class SignalResponse(BaseModel):
@@ -27,5 +32,6 @@ class SignalResponse(BaseModel):
     content: str
     relevance_score: float | None
     timestamp_ref: str | None
+    direction: int | None
     user_flag: str | None
     created_at: datetime

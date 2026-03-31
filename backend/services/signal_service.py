@@ -21,6 +21,7 @@ For each signal, return a JSON array of objects with these fields:
 - "signal_type": one of "injury", "scheme", "motivation", "sentiment", "line_commentary"
 - "content": a concise summary of the signal (1-2 sentences)
 - "relevance_score": float 0.0-1.0 indicating how relevant this is to predicting the outcome
+- "direction": +1 if the signal favors the home team, -1 if it favors the away team, null if neutral or unclear
 - "timestamp_ref": approximate position in transcript if discernible, else null
 
 Return ONLY a JSON array, no other text.
@@ -62,6 +63,7 @@ def extract_signals(db: Session, transcript_id: int) -> list[Signal]:
             content=sd.content,
             relevance_score=sd.relevance_score,
             timestamp_ref=sd.timestamp_ref,
+            direction=sd.direction,
         )
         db.add(signal)
         models.append(signal)
@@ -88,21 +90,39 @@ def parse_llm_response(raw_response: str) -> list[SignalData]:
     if not isinstance(data, list):
         return []
 
-    return [
-        SignalData(
+    results = []
+    for item in data:
+        if not isinstance(item, dict) or not item.get("content"):
+            continue
+        direction = item.get("direction")
+        if direction is not None:
+            direction = int(direction) if direction in (1, -1, 1.0, -1.0) else None
+        results.append(SignalData(
             signal_type=item.get("signal_type", "unknown"),
             content=item.get("content", ""),
             relevance_score=float(item.get("relevance_score", 0.0)),
             timestamp_ref=item.get("timestamp_ref"),
-        )
-        for item in data
-        if isinstance(item, dict) and item.get("content")
-    ]
+            direction=direction,
+        ))
+    return results
 
 
 def rank_signals(signals: list[SignalData]) -> list[SignalData]:
     """Sort signals by relevance_score descending."""
     return sorted(signals, key=lambda s: s.relevance_score, reverse=True)
+
+
+def set_direction(db: Session, signal_id: int, direction: int) -> Signal:
+    """Set the direction on a signal (+1 favors home, -1 favors away)."""
+    if direction not in (1, -1):
+        raise ValueError("Direction must be +1 or -1")
+    signal = db.get(Signal, signal_id)
+    if not signal:
+        raise ValueError(f"Signal {signal_id} not found")
+    signal.direction = direction
+    db.commit()
+    db.refresh(signal)
+    return signal
 
 
 def flag_signal(db: Session, signal_id: int, flag: str) -> Signal:

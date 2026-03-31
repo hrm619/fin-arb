@@ -20,3 +20,4 @@ class RankedEvent(BaseModel):
     weighted_score: float
     kelly_fraction: float
     kelly_stake: float
+    composite_confidence: float | None = None

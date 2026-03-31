@@ -23,6 +23,7 @@ def submit_estimate(db: Session, event_id: int, data: EstimateCreate) -> UserEst
         american_odds=pct_to_american(data.probability_pct),
         decimal_odds=pct_to_decimal(data.probability_pct),
         note=data.note,
+        suggested_estimate_id=data.suggested_estimate_id,
         locked_at=datetime.now(tz=UTC),
     )
     db.add(estimate)

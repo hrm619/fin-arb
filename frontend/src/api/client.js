@@ -64,6 +64,12 @@ export const api = {
   getShortlist: (slateId) => request(`/slates/${slateId}/shortlist`),
   getSlateArb: (slateId) => request(`/slates/${slateId}/arb`),
 
+  // Estimate Engine
+  getSuggestedEstimate: (eventId) => request(`/events/${eventId}/suggested-estimate`),
+  generateSuggestedEstimate: (eventId) => request(`/events/${eventId}/suggested-estimate`, { method: 'POST' }),
+  getStructuralPriors: (eventId) => request(`/events/${eventId}/structural-priors`),
+  setSignalDirection: (signalId, direction) => request(`/signals/${signalId}/direction`, { method: 'PATCH', body: JSON.stringify({ direction }) }),
+
   // Tracking
   gradeEvent: (eventId, data) => request(`/events/${eventId}/outcome`, { method: 'POST', body: JSON.stringify(data) }),
   getTrackingSummary: () => request('/tracking/summary'),

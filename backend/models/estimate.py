@@ -20,6 +20,9 @@ class UserEstimate(Base):
     american_odds: Mapped[Optional[int]] = mapped_column(default=None)
     decimal_odds: Mapped[Optional[float]] = mapped_column(default=None)
     note: Mapped[Optional[str]] = mapped_column(Text, default=None)
+    suggested_estimate_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("suggested_estimates.id"), default=None
+    )
     locked_at: Mapped[datetime] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 

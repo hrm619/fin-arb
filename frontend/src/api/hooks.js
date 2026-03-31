@@ -75,6 +75,34 @@ export const useFlagSignal = (eventId) => {
   return useMutation({ mutationFn: ({ id, flag }) => api.flagSignal(id, flag), onSuccess: () => qc.invalidateQueries({ queryKey: ['signals', eventId] }) });
 };
 
+// Estimate Engine
+export const useSuggestedEstimate = (eventId) => useQuery({
+  queryKey: ['suggestedEstimate', eventId],
+  queryFn: () => api.getSuggestedEstimate(eventId),
+  enabled: !!eventId,
+  retry: false,
+});
+export const useGenerateSuggestedEstimate = (eventId) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.generateSuggestedEstimate(eventId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['suggestedEstimate', eventId] }),
+  });
+};
+export const useStructuralPriors = (eventId) => useQuery({
+  queryKey: ['structuralPriors', eventId],
+  queryFn: () => api.getStructuralPriors(eventId),
+  enabled: !!eventId,
+  retry: false,
+});
+export const useSetSignalDirection = (eventId) => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ signalId, direction }) => api.setSignalDirection(signalId, direction),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['signals', eventId] }),
+  });
+};
+
 // Edge
 export const useEdgeRanking = (slateId) => useQuery({ queryKey: ['edge', slateId], queryFn: () => api.getEdgeRanking(slateId), enabled: !!slateId });
 export const useShortlist = (slateId) => useQuery({ queryKey: ['shortlist', slateId], queryFn: () => api.getShortlist(slateId), enabled: !!slateId });

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from backend.config import get_settings
 from backend.schemas.edge import RankedEvent
 from backend.schemas.market_line import ArbOpportunity
+from backend.services.composer import get_suggested_estimate
 from backend.services.event_service import list_events
 from backend.services.estimate_service import get_estimate
 from backend.services.line_service import detect_arb_opportunities, get_best_line
@@ -23,8 +24,14 @@ def compute_kelly(edge: float, decimal_odds: float, bankroll: float) -> float:
     return kelly_stake(bankroll, frac)
 
 
-def confidence_weight(tier: str | None) -> float:
-    """Map confidence tier to a numeric weight."""
+def confidence_weight(tier: str | None, composite_score: float | None = None) -> float:
+    """Map confidence tier or composite score to a numeric weight.
+
+    If composite_score is provided, use it directly (0-1 range).
+    Otherwise fall back to manual tier mapping.
+    """
+    if composite_score is not None:
+        return max(0.1, min(1.0, composite_score))
     weights = {"high": 1.0, "medium": 0.7, "low": 0.4}
     return weights.get(tier or "", 0.5)
 
@@ -53,7 +60,13 @@ def rank_slate(db: Session, slate_id: int) -> list[RankedEvent]:
         if not is_meaningful_edge(edge, settings.edge_threshold_pct / 100):
             continue
 
-        score = weighted_score(edge, event.confidence_tier)
+        # Use composite confidence if a suggested estimate exists
+        suggested = get_suggested_estimate(db, event.id)
+        comp_score = suggested.composite_confidence if suggested else None
+        tier = suggested.confidence_tier if suggested else event.confidence_tier
+        weight = confidence_weight(tier, composite_score=comp_score)
+
+        score = round(edge * weight, 6)
         decimal_odds = best_line.decimal_odds or 2.0
         frac = fractional_kelly(edge, decimal_odds)
         stake = kelly_stake(settings.kelly_bankroll, frac)
@@ -69,11 +82,12 @@ def rank_slate(db: Session, slate_id: int) -> list[RankedEvent]:
                 best_market_prob_pct=best_line.implied_prob_pct,
                 best_market_source=best_line.source,
                 raw_edge=edge,
-                confidence_tier=event.confidence_tier,
-                confidence_weight=confidence_weight(event.confidence_tier),
+                confidence_tier=tier,
+                confidence_weight=weight,
                 weighted_score=score,
                 kelly_fraction=frac,
                 kelly_stake=stake,
+                composite_confidence=comp_score,
             )
         )
 

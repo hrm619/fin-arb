@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
-from backend.schemas.signal import SignalFlagUpdate, SignalResponse
+from backend.schemas.signal import SignalDirectionUpdate, SignalFlagUpdate, SignalResponse
 from backend.services import signal_service
 
 router = APIRouter(prefix="/api/v1", tags=["signals"])
@@ -44,3 +44,17 @@ def flag_signal(
         return signal_service.flag_signal(db, signal_id, data.user_flag)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.patch(
+    "/signals/{signal_id}/direction",
+    response_model=SignalResponse,
+)
+def set_direction(
+    signal_id: int, data: SignalDirectionUpdate, db: Session = Depends(get_db)
+):
+    """Set signal direction (+1 favors home, -1 favors away)."""
+    try:
+        return signal_service.set_direction(db, signal_id, data.direction)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
